@@ -19,13 +19,16 @@
 #include "ble/BLE.h"
 #include "gatt_server_process.h"
 #include "mbed.h"
-//#include "am_bsp.h"
+// #include "AnalogRead.h"
 
+//#include "am_bsp.h"
 using mbed::callback;
 using namespace std::literals::chrono_literals;
 
 mbed::DigitalOut led(LED1) ; 
-// mbed::AnalogIn Flex( A0 , 0.0 ) ; 
+
+//mbed::AnalogIn Flex( A0 , 0.0 ) ; 
+//mbed::PortIn(A0) ; 
 //mbed::AnalogIn Flex[5] { {A0,0.0} ,{A1,0.0} , {A2,0.0} ,{A3,0.0} ,{A4,0.0}  }; 
 
 /**
@@ -42,8 +45,6 @@ mbed::DigitalOut led(LED1) ;
 class ClockService : public ble::GattServer::EventHandler {
 public:
     ClockService() :
-        _hour_char("485f4145-52b9-4644-af1f-7a6b9322490f", 0),
-        _minute_char("0a924ca7-87cd-4699-a3bd-abdcd9cf126a", 0),
         _second_char("8dd6a1b7-bc75-4741-8a26-264af75807de", 0),
         _clock_service(
             /* uuid */ "51311102-030e-485f-b122-f8f381aa84ed",
@@ -53,18 +54,15 @@ public:
         )
     {
         /* update internal pointers (value, descriptors and characteristics array) */
-        _clock_characteristics[0] = &_hour_char;
-        _clock_characteristics[1] = &_minute_char;
-        _clock_characteristics[2] = &_second_char;
+        _clock_characteristics[0] = &_second_char;
 
         /* setup authorization handlers */
-        _hour_char.setWriteAuthorizationCallback(this, &ClockService::authorize_client_write);
-        _minute_char.setWriteAuthorizationCallback(this, &ClockService::authorize_client_write);
         _second_char.setWriteAuthorizationCallback(this, &ClockService::authorize_client_write);
     }
 
     void start(BLE &ble, events::EventQueue &event_queue)
-    {
+    {   
+        
         _server = &ble.gattServer();
         _event_queue = &event_queue;
 
@@ -81,8 +79,6 @@ public:
 
         printf("clock service registered\r\n");
         printf("service handle: %u\r\n", _clock_service.getHandle());
-        printf("hour characteristic value handle %u\r\n", _hour_char.getValueHandle());
-        printf("minute characteristic value handle %u\r\n", _minute_char.getValueHandle());
         printf("second characteristic value handle %u\r\n", _second_char.getValueHandle());
         
         _event_queue->call_every(1000ms, callback(this, &ClockService::increment_second));
@@ -107,11 +103,12 @@ private:
         printf("data written:\r\n");
         printf("connection handle: %u\r\n", params.connHandle);
         printf("attribute handle: %u", params.handle);
-        if (params.handle == _hour_char.getValueHandle()) {
-            printf(" (hour characteristic)\r\n");
-        } else if (params.handle == _minute_char.getValueHandle()) {
-            printf(" (minute characteristic)\r\n");
-        } else if (params.handle == _second_char.getValueHandle()) {
+        // if (params.handle == _hour_char.getValueHandle()) {
+        //     printf(" (hour characteristic)\r\n");
+        // } else if (params.handle == _minute_char.getValueHandle()) {
+        //     printf(" (minute characteristic)\r\n");
+        // } else 
+        if (params.handle == _second_char.getValueHandle()) {
             printf(" (second characteristic)\r\n");
         } else {
             printf("\r\n");
@@ -136,11 +133,12 @@ private:
         printf("data read:\r\n");
         printf("connection handle: %u\r\n", params.connHandle);
         printf("attribute handle: %u", params.handle);
-        if (params.handle == _hour_char.getValueHandle()) {
-            printf(" (hour characteristic)\r\n");
-        } else if (params.handle == _minute_char.getValueHandle()) {
-            printf(" (minute characteristic)\r\n");
-        } else if (params.handle == _second_char.getValueHandle()) {
+        // if (params.handle == _hour_char.getValueHandle()) {
+        //     printf(" (hour characteristic)\r\n");
+        // } else if (params.handle == _minute_char.getValueHandle()) {
+        //     printf(" (minute characteristic)\r\n");
+        // } else
+         if (params.handle == _second_char.getValueHandle()) {
             printf(" (second characteristic)\r\n");
         } else {
             printf("\r\n");
@@ -204,12 +202,12 @@ private:
             return;
         }
 
-        if ((e->data[0] >= 60) ||
-            ((e->data[0] >= 24) && (e->handle == _hour_char.getValueHandle()))) {
-            printf("Error invalid data\r\n");
-            e->authorizationReply = AUTH_CALLBACK_REPLY_ATTERR_WRITE_NOT_PERMITTED;
-            return;
-        }
+        // if ((e->data[0] >= 60) ||
+        //     ((e->data[0] >= 24) && (e->handle == _hour_char.getValueHandle()))) {
+        //     printf("Error invalid data\r\n");
+        //     e->authorizationReply = AUTH_CALLBACK_REPLY_ATTERR_WRITE_NOT_PERMITTED;
+        //     return;
+        // }
 
         e->authorizationReply = AUTH_CALLBACK_REPLY_SUCCESS;
     }
@@ -227,8 +225,7 @@ private:
             printf("read of the second value returned error %u\r\n", err);
             return;
         }
-
-        second = (second + 1) % 60;
+        second = (uint8_t) indexAnalogRead(11) ;// (second + 1) % 60;
 
         err = _second_char.set(*_server, second);
         if (err) {
@@ -236,56 +233,56 @@ private:
             return;
         }
 
-        if (second == 0) {
-            increment_minute();
-        }
+        // if (second == 0) {
+        //     increment_minute();
+        // }
     }
 
     /**
      * Increment the minute counter.
      */
-    void increment_minute(void)
-    {
-        uint8_t minute = 0;
-        ble_error_t err = _minute_char.get(*_server, minute);
-        if (err) {
-            printf("read of the minute value returned error %u\r\n", err);
-            return;
-        }
+    // void increment_minute(void)
+    // {
+    //     uint8_t minute = 0;
+    //     ble_error_t err = _minute_char.get(*_server, minute);
+    //     if (err) {
+    //         printf("read of the minute value returned error %u\r\n", err);
+    //         return;
+    //     }
 
-        minute = (minute + 1) % 60;
+    //     minute = (minute + 1) % 60;
 
-        err = _minute_char.set(*_server, minute);
-        if (err) {
-            printf("write of the minute value returned error %u\r\n", err);
-            return;
-        }
+    //     err = _minute_char.set(*_server, minute);
+    //     if (err) {
+    //         printf("write of the minute value returned error %u\r\n", err);
+    //         return;
+    //     }
 
-        if (minute == 0) {
-            increment_hour();
-        }
-    }
+    //     if (minute == 0) {
+    //         increment_hour();
+    //     }
+    // }
 
     /**
      * Increment the hour counter.
      */
-    void increment_hour(void)
-    {
-        uint8_t hour = 0;
-        ble_error_t err = _hour_char.get(*_server, hour);
-        if (err) {
-            printf("read of the hour value returned error %u\r\n", err);
-            return;
-        }
+    // void increment_hour(void)
+    // {
+    //     uint8_t hour = 0;
+    //     ble_error_t err = _hour_char.get(*_server, hour);
+    //     if (err) {
+    //         printf("read of the hour value returned error %u\r\n", err);
+    //         return;
+    //     }
 
-        hour = (hour + 1) % 24;
+    //     hour = (hour + 1) % 24;
 
-        err = _hour_char.set(*_server, hour);
-        if (err) {
-            printf("write of the hour value returned error %u\r\n", err);
-            return;
-        }
-    }
+    //     err = _hour_char.set(*_server, hour);
+    //     if (err) {
+    //         printf("write of the hour value returned error %u\r\n", err);
+    //         return;
+    //     }
+    // }
 
 private:
     /**
@@ -357,14 +354,16 @@ private:
     events::EventQueue *_event_queue = nullptr;
 
     GattService _clock_service;
-    GattCharacteristic* _clock_characteristics[3];
+    GattCharacteristic* _clock_characteristics[1];
 
-    ReadWriteNotifyIndicateCharacteristic<uint8_t> _hour_char;
-    ReadWriteNotifyIndicateCharacteristic<uint8_t> _minute_char;
     ReadWriteNotifyIndicateCharacteristic<uint8_t> _second_char;
 };
 
 int main() {
+    
+    unsigned int rr =  initializeADC() ; 
+    int aa  = indexAnalogRead(11) ; 
+
     BLE &ble = BLE::Instance();
     events::EventQueue event_queue;
     ClockService demo_service;
