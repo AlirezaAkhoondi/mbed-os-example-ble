@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <string>
+#include<vector>
 #include "platform/Callback.h"
 #include "events/EventQueue.h"
 #include "ble/BLE.h"
@@ -45,9 +47,10 @@ mbed::DigitalOut led(LED1) ;
 class ClockService : public ble::GattServer::EventHandler {
 public:
     ClockService() :
-        _second_char("8dd6a1b7-bc75-4741-8a26-264af75807de", 0),
+        _second_char("8dd6a1b7-bc75-4741-8a26-264af75807de" , 0x0000), // "8dd6a1b7-bc75-4741-8a26-264af75807de"
+        // _first_char("8dd6a1b7-bc75-4741-8a26-264af75807de"  , "test") , 
         _clock_service(
-            /* uuid */ "51311102-030e-485f-b122-f8f381aa84ed",
+            /* uuid */ "51311102-030e-485f-b122-f8f381aa84ed" , // "51311102-030e-485f-b122-f8f381aa84ed"
             /* characteristics */ _clock_characteristics,
             /* numCharacteristics */ sizeof(_clock_characteristics) /
                                      sizeof(_clock_characteristics[0])
@@ -81,7 +84,7 @@ public:
         printf("service handle: %u\r\n", _clock_service.getHandle());
         printf("second characteristic value handle %u\r\n", _second_char.getValueHandle());
         
-        _event_queue->call_every(1000ms, callback(this, &ClockService::increment_second));
+        _event_queue->call_every(100ms, callback(this, &ClockService::ReadFlexSensors));
     }
 
     /* GattServer::EventHandler */
@@ -202,12 +205,12 @@ private:
             return;
         }
 
-        // if ((e->data[0] >= 60) ||
-        //     ((e->data[0] >= 24) && (e->handle == _hour_char.getValueHandle()))) {
-        //     printf("Error invalid data\r\n");
-        //     e->authorizationReply = AUTH_CALLBACK_REPLY_ATTERR_WRITE_NOT_PERMITTED;
-        //     return;
-        // }
+        if (e->data[0] >= 60)
+        {
+            printf("Error invalid data\r\n");
+            e->authorizationReply = AUTH_CALLBACK_REPLY_ATTERR_WRITE_NOT_PERMITTED;
+            return;
+        }
 
         e->authorizationReply = AUTH_CALLBACK_REPLY_SUCCESS;
     }
@@ -215,19 +218,34 @@ private:
     /**
      * Increment the second counter.
      */
-    void increment_second(void)
+    void ReadFlexSensors(void)
     {
          led = !led;
-        
-        uint8_t second = 0;
-        ble_error_t err = _second_char.get(*_server, second);
-        if (err) {
-            printf("read of the second value returned error %u\r\n", err);
-            return;
-        }
-        second = (uint8_t) indexAnalogRead(11) ;// (second + 1) % 60;
+        std::string buffer = "" ; 
+        std::vector<uint8_t> tempVector ; 
 
-        err = _second_char.set(*_server, second);
+        int Flex[5] = { indexAnalogRead(11) , 
+        indexAnalogRead(12) , indexAnalogRead(13) ,
+        indexAnalogRead(29) , indexAnalogRead(32)} ; 
+
+        for(int i = 0 ; i<5 ; i++){
+            buffer.append( to_string(Flex[i])) ; 
+            buffer.append(" # ") ; 
+
+            tempVector.push_back(Flex[i]) ; 
+            tempVector.push_back(0x00) ; 
+        }
+        //std::vector<uint8_t> tempVector(buffer.begin(), buffer.end());
+        
+        uint8_t *second = &tempVector[0];
+
+        // ble_error_t err = _second_char.get(*_server, second[0]);
+        // if (err) {
+        //     printf("read of the second value returned error %u\r\n", err);
+        //     return;
+        // }
+
+        ble_error_t err = _second_char.set(*_server, second);
         if (err) {
             printf("write of the second value returned error %u\r\n", err);
             return;
@@ -300,19 +318,21 @@ private:
          * @param[in] uuid The UUID of the characteristic.
          * @param[in] initial_value Initial value contained by the characteristic.
          */
+            //GattAttribute *descriptors[1] {GattCharacteristic::BLE_GATT_FORMAT_UTF8S} ; 
+
         ReadWriteNotifyIndicateCharacteristic(const UUID & uuid, const T& initial_value) :
             GattCharacteristic(
                 /* UUID */ uuid,
-                /* Initial value */ &_value,
-                /* Value size */ sizeof(_value),
-                /* Value capacity */ sizeof(_value),
+                /* Initial value */ _value,
+                /* Value size */ 20,
+                /* Value capacity */ 20,
                 /* Properties */ GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_READ |
-                                 GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_WRITE |
                                  GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_NOTIFY |
-                                 GattCharacteristic::BLE_GATT_CHAR_PROPERTIES_INDICATE,
-                /* Descriptors */ nullptr,
+                                 GattCharacteristic::BLE_GATT_FORMAT_UTF8S | 
+                                 GattCharacteristic::BLE_GATT_FORMAT_SINT32,
+                /* Descriptors */  nullptr,
                 /* Num descriptors */ 0,
-                /* variable len */ false
+                /* variable len */ true
             ),
             _value(initial_value) {
         }
@@ -340,13 +360,13 @@ private:
          * @param[in] local_only Flag that determine if the change should be kept
          * locally or forwarded to subscribed clients.
          */
-        ble_error_t set(GattServer &server, const uint8_t &value, bool local_only = false) const
+        ble_error_t set(GattServer &server, const uint8_t* value, bool local_only = false) const
         {
-            return server.write(getValueHandle(), &value, sizeof(value), local_only);
+            return server.write(getValueHandle(), value, sizeof(value) * 3, local_only);
         }
 
     private:
-        uint8_t _value;
+        uint8_t* _value;
     };
 
 private:
@@ -354,13 +374,12 @@ private:
     events::EventQueue *_event_queue = nullptr;
 
     GattService _clock_service;
-    GattCharacteristic* _clock_characteristics[1];
-
-    ReadWriteNotifyIndicateCharacteristic<uint8_t> _second_char;
+    GattCharacteristic* _clock_characteristics[1];    
+    ReadWriteNotifyIndicateCharacteristic<uint8_t*> _second_char;
+    // ReadOnlyGattCharacteristic<string> _first_char ; 
 };
 
 int main() {
-    
     unsigned int rr =  initializeADC() ; 
     int aa  = indexAnalogRead(11) ; 
 
