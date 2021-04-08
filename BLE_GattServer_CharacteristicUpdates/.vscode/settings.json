@@ -59,6 +59,12 @@
         "xutility": "cpp",
         "i2c_api.h": "c",
         "stdbool.h": "c",
-        "am_mcu_apollo.h": "c"
+        "am_mcu_apollo.h": "c",
+        "cmsis.h": "c",
+        "mstd_mutex": "cpp",
+        "am_hal_iom.h": "c",
+        "device.h": "c",
+        "buffer.h": "c",
+        "us_ticker_defines.h": "c"
     }
 }

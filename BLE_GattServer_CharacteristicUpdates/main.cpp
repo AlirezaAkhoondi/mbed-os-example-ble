@@ -29,6 +29,10 @@ using namespace std::literals::chrono_literals;
 
 mbed::DigitalOut led(LED1) ; 
 
+//mbed::I2C  i2c(I2C_SDA , I2C_SCL);
+
+bno055_interface* bno ; 
+ 
 //mbed::AnalogIn Flex( A0 , 0.0 ) ; 
 //mbed::PortIn(A0) ; 
 //mbed::AnalogIn Flex[5] { {A0,0.0} ,{A1,0.0} , {A2,0.0} ,{A3,0.0} ,{A4,0.0}  }; 
@@ -221,7 +225,7 @@ private:
     void ReadFlexSensors(void)
     {
          led = !led;
-        std::string buffer = "" ; 
+        // std::string buffer = "" ; 
         std::vector<uint8_t> tempVector ; 
 
         int Flex[5] = { indexAnalogRead(11) , 
@@ -229,13 +233,26 @@ private:
         indexAnalogRead(29) , indexAnalogRead(32)} ; 
 
         for(int i = 0 ; i<5 ; i++){
-            buffer.append( to_string(Flex[i])) ; 
-            buffer.append(" # ") ; 
+            // buffer.append( to_string(Flex[i])) ; 
+            // buffer.append(" # ") ; 
+
+            // uint8_t hexBuffer[4] ;
+            // memcpy((char*)hexBuffer,(char*)&Flex[i],sizeof(int));
+            // for(int j=0 ; j< 4 ; j++)
+            //     tempVector.push_back(hexBuffer[j]) ; 
+            // tempVector.push_back(0x00) ;    
 
             tempVector.push_back(Flex[i]) ; 
-            tempVector.push_back(0x00) ; 
+            tempVector.push_back(0x0) ;  
         }
-        //std::vector<uint8_t> tempVector(buffer.begin(), buffer.end());
+
+        // const int addr8bit = 0x48 << 1; // 8-bit I2C address, 0x90
+        // char cmd[2] {0x01 , 0x00};
+        // i2c.write(addr8bit, cmd, 2);
+
+        // tempVector.push_back(bno->SensorRead()) ; 
+        // tempVector.push_back(0x00) ; 
+        // std::vector<uint8_t> tempVector(buffer.begin(), buffer.end());
         
         uint8_t *second = &tempVector[0];
 
@@ -362,7 +379,7 @@ private:
          */
         ble_error_t set(GattServer &server, const uint8_t* value, bool local_only = false) const
         {
-            return server.write(getValueHandle(), value, sizeof(value) * 3, local_only);
+            return server.write(getValueHandle(), value, sizeof(value) * 4, local_only);
         }
 
     private:
@@ -382,6 +399,9 @@ private:
 int main() {
     unsigned int rr =  initializeADC() ; 
     int aa  = indexAnalogRead(11) ; 
+
+
+    bno = new bno055_interface() ; 
 
     BLE &ble = BLE::Instance();
     events::EventQueue event_queue;
